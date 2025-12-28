@@ -108,9 +108,9 @@ pub const ArrayListStore = struct {
 
     /// Given a funcaddr return a Function if the funcaddr exists
     /// otherwise error with BadFunctionIndex.
-    pub fn function(self: *ArrayListStore, funcaddr: usize) !Function {
+    pub fn function(self: *ArrayListStore, funcaddr: u32) !Function {
         if (funcaddr >= self.functions.items.len) return error.BadFunctionIndex;
-        return self.functions.items[funcaddr];
+        return self.functions.items[@intCast(funcaddr)];
     }
 
     pub fn addFunction(self: *ArrayListStore, func: Function) !usize {
@@ -121,7 +121,7 @@ pub const ArrayListStore = struct {
 
     /// Given a memaddr return a pointer to the Memory if the memaddr exists
     /// otherwise error with BadMemoryIndex.
-    pub fn memory(self: *ArrayListStore, memaddr: usize) !*Memory {
+    pub fn memory(self: *ArrayListStore, memaddr: u32) !*Memory {
         if (memaddr >= self.memories.items.len) return error.BadMemoryIndex;
         return &self.memories.items[memaddr];
     }
@@ -136,7 +136,7 @@ pub const ArrayListStore = struct {
 
     /// Given a tableaddr return a pointer to the Table if the tableaddr exists
     /// otherwise error with BadTableIndex.
-    pub fn table(self: *ArrayListStore, tableaddr: usize) !*Table {
+    pub fn table(self: *ArrayListStore, tableaddr: u32) !*Table {
         if (tableaddr >= self.tables.items.len) return error.BadTableIndex;
         return &self.tables.items[tableaddr];
     }
@@ -149,7 +149,7 @@ pub const ArrayListStore = struct {
 
     /// Given a globaladdr return a pointer to the Global if the globaladdr exists
     /// otherwise error with BadGlobalIndex.
-    pub fn global(self: *ArrayListStore, globaladdr: usize) !*Global {
+    pub fn global(self: *ArrayListStore, globaladdr: u32) !*Global {
         if (globaladdr >= self.globals.items.len) return error.BadGlobalIndex;
         return &self.globals.items[globaladdr];
     }

@@ -31,9 +31,8 @@ pub const Memory = struct {
         return @truncate(self.data.items.len / PAGE_SIZE);
     }
 
-    pub fn sizeBytes(self: *Memory) u33 {
-        // FIXME: add assertion that len fits in u33
-        return @truncate(self.data.items.len);
+    pub fn sizeBytes(self: *Memory) u64 {
+        return @intCast(self.data.items.len);
     }
 
     pub fn grow(self: *Memory, num_pages: u32) !usize {
@@ -73,8 +72,9 @@ pub const Memory = struct {
     }
 
     pub fn read(self: *Memory, comptime T: type, offset: u32, address: u32) !T {
-        const effective_address = @as(u33, offset) + @as(u33, address);
+        const effective_address = @as(u64, offset) + @as(u64, address);
         if (effective_address + @sizeOf(T) - 1 >= self.data.items.len) return error.OutOfBoundsMemoryAccess;
+        const idx: usize = @intCast(effective_address);
 
         switch (T) {
             u8,
@@ -85,13 +85,13 @@ pub const Memory = struct {
             i16,
             i32,
             i64,
-            => return mem.readInt(T, @as(*const [@sizeOf(T)]u8, @ptrCast(&self.data.items[effective_address])), .little),
+            => return mem.readInt(T, @as(*const [@sizeOf(T)]u8, @ptrCast(&self.data.items[idx])), .little),
             f32 => {
-                const x = mem.readInt(u32, @as(*const [@sizeOf(T)]u8, @ptrCast(&self.data.items[effective_address])), .little);
+                const x = mem.readInt(u32, @as(*const [@sizeOf(T)]u8, @ptrCast(&self.data.items[idx])), .little);
                 return @bitCast(x);
             },
             f64 => {
-                const x = mem.readInt(u64, @as(*const [@sizeOf(T)]u8, @ptrCast(&self.data.items[effective_address])), .little);
+                const x = mem.readInt(u64, @as(*const [@sizeOf(T)]u8, @ptrCast(&self.data.items[idx])), .little);
                 return @bitCast(x);
             },
             else => @compileError("Memory.read unsupported type (not int/float): " ++ @typeName(T)),
@@ -99,8 +99,9 @@ pub const Memory = struct {
     }
 
     pub fn write(self: *Memory, comptime T: type, offset: u32, address: u32, value: T) !void {
-        const effective_address = @as(u33, offset) + @as(u33, address);
+        const effective_address = @as(u64, offset) + @as(u64, address);
         if (effective_address + @sizeOf(T) - 1 >= self.data.items.len) return error.OutOfBoundsMemoryAccess;
+        const idx: usize = @intCast(effective_address);
 
         switch (T) {
             u8,
@@ -111,14 +112,14 @@ pub const Memory = struct {
             i16,
             i32,
             i64,
-            => std.mem.writeInt(T, @as(*[@sizeOf(T)]u8, @ptrCast(&self.data.items[effective_address])), value, .little),
+            => std.mem.writeInt(T, @as(*[@sizeOf(T)]u8, @ptrCast(&self.data.items[idx])), value, .little),
             f32 => {
                 const x: u32 = @bitCast(value);
-                std.mem.writeInt(u32, @as(*[@sizeOf(u32)]u8, @ptrCast(&self.data.items[effective_address])), x, .little);
+                std.mem.writeInt(u32, @as(*[@sizeOf(u32)]u8, @ptrCast(&self.data.items[idx])), x, .little);
             },
             f64 => {
                 const x: u64 = @bitCast(value);
-                std.mem.writeInt(u64, @as(*[@sizeOf(u64)]u8, @ptrCast(&self.data.items[effective_address])), x, .little);
+                std.mem.writeInt(u64, @as(*[@sizeOf(u64)]u8, @ptrCast(&self.data.items[idx])), x, .little);
             },
             else => @compileError("Memory.read unsupported type (not int/float): " ++ @typeName(T)),
         }
