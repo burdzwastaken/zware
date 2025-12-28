@@ -6,13 +6,13 @@ const ArrayList = std.ArrayList;
 
 pub const Table = struct {
     alloc: mem.Allocator,
-    data: ArrayList(?usize),
+    data: ArrayList(?u64),
     min: u32,
     max: ?u32,
     reftype: RefType,
 
     pub fn init(alloc: mem.Allocator, reftype: RefType, min: u32, max: ?u32) !Table {
-        var data: ArrayList(?usize) = .empty;
+        var data: ArrayList(?u64) = .empty;
         try data.appendNTimes(alloc, null, min);
 
         return Table{
@@ -28,17 +28,17 @@ pub const Table = struct {
         self.data.deinit(self.alloc);
     }
 
-    pub fn lookup(self: *Table, index: u32) !usize {
+    pub fn lookup(self: *Table, index: u32) !u64 {
         if (index >= self.data.items.len) return error.OutOfBoundsMemoryAccess;
         return self.data.items[index] orelse return error.UndefinedElement;
     }
 
-    pub fn get(self: *Table, index: u32) !?usize {
+    pub fn get(self: *Table, index: u32) !?u64 {
         if (index >= self.data.items.len) return error.OutOfBoundsMemoryAccess;
         return self.data.items[index];
     }
 
-    pub fn set(self: *Table, index: u32, value: ?usize) !void {
+    pub fn set(self: *Table, index: u32, value: ?u64) !void {
         if (index >= self.data.items.len) return error.OutOfBoundsMemoryAccess;
         self.data.items[index] = value;
     }

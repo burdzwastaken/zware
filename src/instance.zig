@@ -94,7 +94,7 @@ pub const Instance = struct {
     pub fn getFunc(self: *Instance, funcidx: usize) !Function {
         if (funcidx >= self.funcaddrs.items.len) return error.FunctionIndexOutOfBounds;
         const funcaddr = self.funcaddrs.items[funcidx];
-        return try self.store.function(funcaddr);
+        return try self.store.function(@intCast(funcaddr));
     }
 
     // Lookup a memory in store via the modules index
@@ -102,20 +102,20 @@ pub const Instance = struct {
         // TODO: with a verified program we shouldn't need to check this
         if (index >= self.memaddrs.items.len) return error.MemoryIndexOutOfBounds;
         const memaddr = self.memaddrs.items[index];
-        return try self.store.memory(memaddr);
+        return try self.store.memory(@intCast(memaddr));
     }
 
     pub fn getTable(self: *Instance, index: usize) !*Table {
         // TODO: with a verified program we shouldn't need to check this
         if (index >= self.tableaddrs.items.len) return error.TableIndexOutOfBounds;
         const tableaddr = self.tableaddrs.items[index];
-        return try self.store.table(tableaddr);
+        return try self.store.table(@intCast(tableaddr));
     }
 
     pub fn getGlobal(self: *Instance, index: usize) !*Global {
         if (index >= self.globaladdrs.items.len) return error.GlobalIndexOutOfBounds;
         const globaladdr = self.globaladdrs.items[index];
-        return try self.store.global(globaladdr);
+        return try self.store.global(@intCast(globaladdr));
     }
 
     pub fn getElem(self: *Instance, elemidx: usize) !*Elem {
@@ -274,7 +274,7 @@ pub const Instance = struct {
                 .Passive => continue,
                 .Active => |active| {
                     const memaddr = self.memaddrs.items[active.memidx];
-                    const memory = try self.store.memory(memaddr);
+                    const memory = try self.store.memory(@intCast(memaddr));
 
                     const offset = try self.invokeExpression(active.offset, u32, .{});
                     try memory.copy(offset, data.data);

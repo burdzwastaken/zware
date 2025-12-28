@@ -96,11 +96,18 @@ pub const VirtualMachine = struct {
         return preopen.host_fd;
     }
 
-    pub fn invoke(self: *VirtualMachine, ip: usize) !void {
-        const instr = self.inst.module.parsed_code.items[ip];
+    pub fn invoke(self: *VirtualMachine, start_ip: usize) !void {
+        self.ip = start_ip;
+        const code = self.inst.module.parsed_code.items;
 
-        try @call(.auto, lookup[@intFromEnum(instr)], .{ self, ip, self.inst.module.parsed_code.items });
+        while (self.ip != RETURN_SENTINEL) {
+            const current_ip = self.ip;
+            const instr = code[current_ip];
+            try @call(.auto, lookup[@intFromEnum(instr)], .{ self, current_ip, code });
+        }
     }
+
+    const RETURN_SENTINEL: usize = std.math.maxInt(usize);
 
     const InstructionFunction = *const fn (*VirtualMachine, usize, []Rr) WasmError!void;
 
@@ -124,13 +131,8 @@ pub const VirtualMachine = struct {
     };
 
     inline fn dispatch(self: *VirtualMachine, next_ip: usize, code: []Rr) WasmError!void {
-        const next_instr = code[next_ip];
-
-        if (builtin.zig_backend == .stage2_x86_64) {
-            @compileError("zware currently requires the LLVM backend for `.always_tail`. See https://github.com/ziglang/zig/issues/24044");
-        }
-
-        return @call(.always_tail, lookup[@intFromEnum(next_instr)], .{ self, next_ip, code });
+        _ = code;
+        self.ip = next_ip;
     }
 
     pub const REF_NULL: u64 = 0xFFFF_FFFF_FFFF_FFFF;
@@ -257,7 +259,10 @@ pub const VirtualMachine = struct {
 
         _ = self.popFrame();
 
-        if (self.frame_ptr == 0) return; // If this is the last frame on the stack we're done invoking
+        if (self.frame_ptr == 0) {
+            self.ip = RETURN_SENTINEL;
+            return;
+        }
 
         // We potentially change instance when returning from a function, so restore the inst
         const previous_frame = self.peekFrame();
@@ -319,7 +324,7 @@ pub const VirtualMachine = struct {
         const lookup_index = self.popOperand(u32);
         const table = try self.inst.getTable(tableidx);
         const funcaddr = try table.lookup(lookup_index);
-        const function = try self.inst.store.function(funcaddr);
+        const function = try self.inst.store.function(@truncate(funcaddr));
 
         // Check that signatures match
         const call_indirect_func_type = module.types.list.items[typeidx];
@@ -2115,12 +2120,7 @@ pub const VirtualMachine = struct {
 
     inline fn miscDispatch(self: *VirtualMachine, next_ip: usize, code: []Rr) WasmError!void {
         const next_instr = code[next_ip].misc;
-
-        if (builtin.zig_backend == .stage2_x86_64) {
-            @compileError("zware currently requires the LLVM backend for `.always_tail`. See https://github.com/ziglang/zig/issues/24044");
-        }
-
-        return @call(.always_tail, misc_lookup[@intFromEnum(next_instr)], .{ self, next_ip, code });
+        return @call(.auto, misc_lookup[@intFromEnum(next_instr)], .{ self, next_ip, code });
     }
 
     fn @"i32.trunc_sat_f32_s"(self: *VirtualMachine, ip: usize, code: []Rr) WasmError!void {
