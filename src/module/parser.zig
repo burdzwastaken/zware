@@ -1,6 +1,5 @@
 const std = @import("std");
 const math = std.math;
-const leb = std.leb;
 const ArrayList = std.ArrayList;
 const Module = @import("../module.zig").Module;
 const Decoder = @import("../module.zig").Decoder;
@@ -161,7 +160,7 @@ pub const Parser = struct {
         if (self.scope == 0) return null;
 
         // 1. Get the instruction we're going to return and increment code
-        const instr = std.meta.intToEnum(Opcode, self.code[0]) catch return error.IllegalOpcode;
+        const instr = std.enums.fromInt(Opcode, self.code[0]) orelse return error.IllegalOpcode;
         self.code = self.code[1..];
 
         var rr: Rr = undefined;
@@ -398,7 +397,7 @@ pub const Parser = struct {
                 const type_count = try self.readLEB128Mem(u32);
                 if (type_count != 1) return error.OnlyOneSelectTTypeSupported; // Future versions may support more than one
                 const valuetype_raw = try self.readLEB128Mem(u32);
-                const valuetype = try std.meta.intToEnum(ValType, valuetype_raw);
+                const valuetype = std.enums.fromInt(ValType, valuetype_raw) orelse return error.IllegalOpcode;
 
                 try self.validator.validateSelectT(valuetype);
 
@@ -1016,7 +1015,7 @@ pub const Parser = struct {
             .@"i64.extend32_s" => rr = Rr.@"i64.extend32_s",
             .@"ref.null" => {
                 const rtype = try self.readLEB128Mem(u32);
-                const reftype = std.meta.intToEnum(RefType, rtype) catch return error.MalformedRefType;
+                const reftype = std.enums.fromInt(RefType, rtype) orelse return error.MalformedRefType;
 
                 try self.validator.validateRefNull(reftype);
                 rr = Rr{ .@"ref.null" = reftype };
@@ -1045,7 +1044,7 @@ pub const Parser = struct {
             },
             .misc => {
                 const version = try self.readLEB128Mem(u32);
-                const misc_opcode = try std.meta.intToEnum(MiscOpcode, version);
+                const misc_opcode = std.enums.fromInt(MiscOpcode, version) orelse return error.IllegalOpcode;
                 try self.validator.validateMisc(misc_opcode);
 
                 switch (misc_opcode) {
@@ -1186,13 +1185,8 @@ pub const Parser = struct {
     }
 
     pub fn readLEB128Mem(self: *Parser, comptime T: type) !T {
-        var buf = std.Io.fixedBufferStream(self.code);
-
-        const readFn = switch (@typeInfo(T).int.signedness) {
-            .signed => std.leb.readIleb128,
-            .unsigned => std.leb.readUleb128,
-        };
-        const value = try readFn(T, buf.reader());
+        var reader = std.Io.Reader.fixed(self.code);
+        const value = try reader.takeLeb128(T);
 
         if (@typeInfo(T).int.signedness == .signed) {
             // The following is a bit of a kludge that should really
@@ -1201,44 +1195,41 @@ pub const Parser = struct {
             // expects the "unused" bits in a negative ILEB128 to all be
             // one and the same bits in a positive ILEB128 to be zero.
             switch (T) {
-                i32 => if (buf.pos == 5 and value < 0 and buf.buffer[4] & 0x70 != 0x70) return error.Overflow,
-                i64 => if (buf.pos == 10 and value < 0 and buf.buffer[9] & 0x7e != 0x7e) return error.Overflow,
+                i32 => if (reader.seek == 5 and value < 0 and reader.buffer[4] & 0x70 != 0x70) return error.Overflow,
+                i64 => if (reader.seek == 10 and value < 0 and reader.buffer[9] & 0x7e != 0x7e) return error.Overflow,
                 else => @compileError("self.readLEB128Mem expects an unsigned type, i32 or i64"),
             }
         }
 
-        self.code.ptr += buf.pos;
-        self.code.len -= buf.pos;
+        self.code.ptr += reader.seek;
+        self.code.len -= reader.seek;
         return value;
     }
 
     pub fn readU32(self: *Parser) !u32 {
-        var buf = std.Io.fixedBufferStream(self.code);
-        const rd = buf.reader();
-        const value = try rd.readInt(u32, .little);
+        var reader = std.Io.Reader.fixed(self.code);
+        const value = try reader.takeVarInt(u32, .little, 4);
 
-        self.code.ptr += buf.pos;
-        self.code.len -= buf.pos;
+        self.code.ptr += reader.seek;
+        self.code.len -= reader.seek;
         return value;
     }
 
     pub fn readU64(self: *Parser) !u64 {
-        var buf = std.Io.fixedBufferStream(self.code);
-        const rd = buf.reader();
-        const value = try rd.readInt(u64, .little);
+        var reader = std.Io.Reader.fixed(self.code);
+        const value = try reader.takeVarInt(u64, .little, 8);
 
-        self.code.ptr += buf.pos;
-        self.code.len -= buf.pos;
+        self.code.ptr += reader.seek;
+        self.code.len -= reader.seek;
         return value;
     }
 
     pub fn readByte(self: *Parser) !u8 {
-        var buf = std.Io.fixedBufferStream(self.code);
-        const rd = buf.reader();
-        const value = try rd.readByte();
+        var reader = std.Io.Reader.fixed(self.code);
+        const value = try reader.takeByte();
 
-        self.code.ptr += buf.pos;
-        self.code.len -= buf.pos;
+        self.code.ptr += reader.seek;
+        self.code.len -= reader.seek;
         return value;
     }
 };

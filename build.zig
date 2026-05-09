@@ -1,28 +1,23 @@
 const Build = @import("std").Build;
 
-pub fn build(b: *Build) !void {
+pub fn build(b: *Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const zware_module = b.createModule(.{
-        .root_source_file = b.path("src/main.zig"),
-    });
-
-    try b.modules.put(b.dupe("zware"), zware_module);
-
-    const main_mod = b.addModule("zware", .{
+    const zware_module = b.addModule("zware", .{
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
     });
+
     const lib = b.addLibrary(.{
         .name = "zware",
-        .root_module = main_mod,
+        .root_module = zware_module,
     });
     b.installArtifact(lib);
 
     const main_tests = b.addTest(.{
-        .root_module = main_mod,
+        .root_module = zware_module,
         .use_llvm = true,
     });
 
@@ -134,13 +129,13 @@ fn addWast2Json(b: *Build) *Build.Step.Compile {
             .optimize = .Debug,
         }),
     });
-    wabt_lib.addConfigHeader(wabt_config_h);
-    wabt_lib.addIncludePath(wabt_dep.path("include"));
-    wabt_lib.addCSourceFiles(.{
+    wabt_lib.root_module.addConfigHeader(wabt_config_h);
+    wabt_lib.root_module.addIncludePath(wabt_dep.path("include"));
+    wabt_lib.root_module.addCSourceFiles(.{
         .root = wabt_dep.path("."),
         .files = &wabt_files,
     });
-    wabt_lib.linkLibCpp();
+    wabt_lib.root_module.linkSystemLibrary("c++", .{});
 
     const wast2json = b.addExecutable(.{
         .name = "wast2json",
@@ -148,13 +143,13 @@ fn addWast2Json(b: *Build) *Build.Step.Compile {
             .target = b.graph.host,
         }),
     });
-    wast2json.addConfigHeader(wabt_config_h);
-    wast2json.addIncludePath(wabt_dep.path("include"));
-    wast2json.addCSourceFile(.{
+    wast2json.root_module.addConfigHeader(wabt_config_h);
+    wast2json.root_module.addIncludePath(wabt_dep.path("include"));
+    wast2json.root_module.addCSourceFile(.{
         .file = wabt_dep.path("src/tools/wast2json.cc"),
     });
-    wast2json.linkLibCpp();
-    wast2json.linkLibrary(wabt_lib);
+    wast2json.root_module.linkSystemLibrary("c++", .{});
+    wast2json.root_module.linkLibrary(wabt_lib);
     return wast2json;
 }
 
